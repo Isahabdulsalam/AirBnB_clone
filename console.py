@@ -2,8 +2,6 @@
 
 import cmd
 from models.base_model import BaseModel
-from models import storage
-from models.base_model import BaseModel
 from models.user import User
 from models.state import State
 from models.city import City
@@ -15,7 +13,7 @@ from models.review import Review
 class HBNBCommand(cmd.Cmd):
     prompt = '(hbnb) '
 
-    __class = {
+    __classes = {
             "BaseModel",
             "User",
             "State",
@@ -44,15 +42,14 @@ class HBNBCommand(cmd.Cmd):
 
     def do_create(self, line):
         """Create a new instance of BaseModel"""
-        if not arg:
+        args = parse(arg)
+        if len(args) == 0:
             print("** class name missing **")
-            return
-        try:
-            new_instance = eval(arg)()
-            new_instance.save()
-            print(new_instance.id)
-        except NameError:
+        elif args[0] not in HBNBCommand.__classes:
             print("** class doesn't exist **")
+        else:
+            print(eval(args[0])().id)
+            storage.save()
 
     def do_show(self, arg):
         """Print the string representation of an instance"""
@@ -90,62 +87,63 @@ class HBNBCommand(cmd.Cmd):
             print("** class doesn't exist **")
 
     def do_all(self, arg):
-        """Print all string representations of instances"""
-        objects = storage.all()
-        if not arg:
-            print([str(obj) for obj in objects.values()])
+        """Print all string representations of instances
+        Usage: all or all <class> or <class>.all()
+        Display string representations of all instances of a given class.        
+        If no class is specified, displays all instantiated objects."""        
+        args = parse(arg)
+        if len(args) > 0 and args[0] not in HBNBCommand.__classes:
+            print("** class doesn't exist **")
         else:
-            try:
-                class_name = eval(arg).__name__
-                filtered_objs = [str(obj) for obj in objects.values() if obj.__class__.__name__ == class_name]
-                print(filtered_objs)
-            except NameError:
-                print("** class doesn't exist **")
-
+            objl = []
+            for obj in storage.all().values():
+                if len(args) > 0 and args[0] == obj.__class__.__name__:
+                    objl.append(obj.__str__())
+                elif len(argl) == 0:
+                    objl.append(obj.__str__())
+                    print(objl)
     def do_update(self, arg):
         """Update an instance based on class name and id (BaseModel or User)"""
-        if not arg:
+        args = parse(arg)
+        objdict = storage.all()
+        if len(args) == 0:
             print("** class name missing **")
-            return
-        try:
-            args = arg.split()
-            class_name = eval(args[0]).__name__
-            if class_name == "User":
-                class_name = "models.user.User"
-            instance_id = args[1]
-            instance = storage.get_object_by_id(class_name, instance_id)
-
-            if instance:
-                if len(args) < 4:
-                    if len(args) == 2:
-                        print("** instance id missing **")
-                    elif len(args) == 3:
-                        print("** attribute name missing **")
-                else:
-                    attr_name = args[2]
-                    attr_value_str = args[3]
-
-                    # Check if the attribute name is valid
-                    if not hasattr(instance, attr_name):
-                        print("** attribute doesn't exist **")
-                        return
-
-                    # Cast the attribute value to the attribute type
-                    attr_type = type(getattr(instance, attr_name))
-                    try:
-                        attr_value = attr_type(attr_value_str.strip('"'))
-                        setattr(instance, attr_name, attr_value)
-                        instance.save()
-                    except ValueError:
-                        print("** invalid value **")
-            else:
-                print("** no instance found **")
-        except ValueError:
-            print("** instance id missing **")
-        except IndexError:
-            print("** instance id missing **")
-        except NameError:
+            return False
+        if args[0] not in HBNBCommand.__classes:
             print("** class doesn't exist **")
+            return False
+        if len(args) == 1:
+            print("** instance id missing **")
+            return False
+        if "{}.{}".format(args[0], args[1]) not in objdict.keys():
+            print("** no instance found **")
+            return False
+        if len(args) == 2:
+            print("** attribute name missing **")
+            return False
+        if len(args) == 3:
+            try:
+                type(eval(args[2])) != dict
+            except NameError:
+                print("** value missing **")
+                return False
+            if len(args) == 4:
+                obj = objdict["{}.{}".format(args[0], args[1])]
+                if args[2] in obj.__class__.__dict__.keys():
+                    valtype = type(obj.__class__.__dict__[args[2]])
+                    obj.__dict__[args[2]] = valtype(args[3])
+                else:
+                    obj.__dict__[args[2]] = args[3]
+            elif type(eval(args[2])) == dict:
+                    obj = objdict["{}.{}".format(args[0], args[1])]
+                    for a, b in eval(args[2]).items():
+                        if (a in obj.__class__.__dict__.keys() and
+                            type(obj.__class__.__dict__[a]) in {str, int, float}):
+                            valtype = type(obj.__class__.__dict__[a])
+                            obj.__dict__[a] = valtype(b)
+            else:
+                obj.__dict__[a] = b
+                storage.save()
 
     def do_count(self, arg):
         """Retrieve the number of instances of a class"""
@@ -164,4 +162,3 @@ class HBNBCommand(cmd.Cmd):
       
 if __name__ == '__main__':
     HBNBCommand().cmdloop()
-
